@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+data/grid/srtm/
+*.aux.xml
+.DS_Store
+Thumbs.db

@@ -1,0 +1,3 @@
+dataset,offset_mm_d,N,start,end
+GLDAS,-0.00637,240,2000-01,2019-12
+SMAP L4,0.25091,57,2015-04,2019-12

@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this code or data, please cite the article and this repository."
+title: "cwatm-et-southwest-iran: evaluation and projection of CWatM evapotranspiration in southwest Iran"
+version: 1.0.0
+date-released: 2026-11-05
+license: MIT
+authors:
+  - family-names: Mohammadnezhad
+    given-names: Mahdi
+    orcid: "https://orcid.org/0009-0001-1878-7185"
+  - family-names: Rezaee
+    given-names: Ali
+    orcid: "https://orcid.org/0000-0002-2018-1043"
+  - family-names: Smilovic
+    given-names: Mikhail
+    orcid: "https://orcid.org/0000-0001-9651-8821"
+keywords:
+  - evapotranspiration
+  - CWatM
+  - CMIP6
+  - remote sensing
+  - irrigated agriculture
