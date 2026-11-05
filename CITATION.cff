@@ -1,9 +1,10 @@
 cff-version: 1.2.0
 message: "If you use this code or data, please cite the article and this repository."
-title: "cwatm-et-southwest-iran: evaluation and projection of CWatM evapotranspiration in southwest Iran"
+title: "CWatM-et-southwest-Iran: evaluation and projection of CWatM evapotranspiration in southwest Iran"
 version: 1.0.0
 date-released: 2026-11-05
 license: MIT
+repository-code: "https://github.com/mahdimohammadnezhad/CWatM-et-southwest-Iran"
 authors:
   - family-names: Mohammadnezhad
     given-names: Mahdi

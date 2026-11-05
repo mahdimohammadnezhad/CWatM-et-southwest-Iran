@@ -1,4 +1,4 @@
-# cwatm-et-southwest-iran
+# CWatM-et-southwest-Iran
 
 Code and derived data for the evaluation of actual evapotranspiration (ET) simulated by the
 Community Water Model (CWatM) in the Karun, Karkheh, and Marzi-e-Gharb basins of southwest Iran,
@@ -50,7 +50,7 @@ NetCDF files are read through the GDAL netCDF driver included in the `rasterio` 
 From the repository root:
 
 ```bash
-python run_all.py            # steps 03, 05, 06, 08: uses only the files in data/
+python run_all.py            # steps 03, 05, 06, 07 (Table S6 only), 08: uses only the files in the repository
 python run_all.py --full     # all steps; needs CWatM output, climate forcing and internet access
 ```
 
@@ -58,12 +58,12 @@ python run_all.py --full     # all steps; needs CWatM output, climate forcing an
 |---|---|---|---|
 | 01 | `01_basin_cells.py` | basin polygon | `data/cwatm/basin_cells.csv` |
 | 02 | `02_cwatm_series.py` | CWatM output (`CWATM_OUTPUT`) | `data/cwatm/*.csv` |
-| 03 | `03_evaluation.py` | data/ | Table 1, flux-class and quarterly PBIAS, mean adjustment |
+| 03 | `03_evaluation.py` | data/ | Table 1, Table S5, mean adjustment |
 | 04 | `04_environment_grid.py` | internet (SRTM tiles, Planetary Computer) | `data/grid/*.npz` |
 | 05 | `05_spatial_gradients.py` | data/ | ET by elevation, climate, and land cover |
-| 06 | `06_projections.py` | data/ | Table 2, Tables S1–S2, monthly signals, annual series |
-| 07 | `07_climate_associations.py` | CWatM daily output, forcing (`FORCING_HIST`, `FORCING_FUTURE`) | Table S3 |
-| 08 | `08_figures.py` | results/ | Figs. 2–8, S1–S2 |
+| 06 | `06_projections.py` | data/ | Table 2, Tables S1–S4, monthly signals, annual series |
+| 07 | `07_climate_associations.py` | CWatM daily output, forcing (`FORCING_HIST`, `FORCING_FUTURE`); with `--tables-only` only `results/annual_climate.csv` | monthly and annual ET, P and T; Table S6 |
+| 08 | `08_figures.py` | results/ | Figs. 2–9, S1 |
 
 Paths to the raw data are set with environment variables (defaults in `etcompare/config.py`):
 
@@ -84,13 +84,16 @@ export FORCING_FUTURE=/path/to/ISIMIP3b                # <GCM>/<SSP>/ subfolders
 | Fig. 6 | `figures/fig6_gradients.png`, `results/gradients.json` |
 | Fig. 7 | `figures/fig7_annual_et.png`, `results/annual_series.csv`, `results/mean_adjustment.csv` |
 | Fig. 8 | `figures/fig8_monthly_change.png`, `results/monthly_signals.csv` |
+| Fig. 9 | `figures/fig9_et_climate.png`, `results/annual_climate.csv` |
 | Table 2 | `results/table2_changes.csv` |
-| Table S1 | `results/tableS1_overlap.csv` |
-| Table S2 | `results/tableS2_statistics.csv` |
-| Table S3, Fig. S2 | `results/tableS3_relationships.csv`, `figures/figS2_et_climate.png` |
 | Fig. S1 | `figures/figS1_monthly_distributions.png` |
+| Table S1 | `results/tableS1_overlap.csv` |
+| Tables S2–S4 | `results/tableS2_2025-2049.csv`, `results/tableS3_2050-2074.csv`, `results/tableS4_2075-2099.csv` |
+| Table S5 | `results/tableS5_pbias.csv` |
+| Table S6 | `results/tableS6_relationships.csv` |
 
 Fig. 1 (study area and infrastructure) is taken from Mohammadnezhad et al. (2026).
+`results/annual_climate.csv` is included so that Fig. 9 and Table S6 can be produced without the raw data.
 
 ## Notes
 
@@ -98,8 +101,12 @@ Fig. 1 (study area and infrastructure) is taken from Mohammadnezhad et al. (2026
   Weighting cells by their area inside the basin polygon (`w_poly`) changes the 2000–2019 mean by 0.4%.
 - The additive mean adjustment of GLDAS-Noah and SMAP L4 is used only to compare inter-annual
   variability in Fig. 7; all statistics use the original series.
-- Table 2 values reproduce the article to within 0.1 percentage point; the article used spherical
-  cell areas and this code uses ellipsoidal (EPSG:6933) cell areas.
+- Cell areas are taken from an equal-area projection (EPSG:6933). Tables 1, S1, S5 and S6 and Fig. 9
+  are reproduced to the last printed digit. Table 2 and Tables S2–S4 of the article were computed with
+  spherical cell areas; with the areas used here they differ by at most 0.02 percentage points (one
+  value of Table 2 rounds to 8.6 instead of 8.5).
+- Fig. 9 and Table S6 use CWatM land-surface ET (`totalET`) without the scaling applied to the
+  projections, averaged over all grid cells touching the basin polygon.
 - Maps show the contiguous basin complex; all statistics use the full basin polygon.
 
 ## Data sources

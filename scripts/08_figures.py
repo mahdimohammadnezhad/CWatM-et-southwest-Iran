@@ -1,6 +1,7 @@
-"""Figures 2-8 and supplementary Figures S1-S2.
+"""Figures 2-9 and supplementary Figure S1.
 
-Usage: python scripts/08_figures.py [fig2 fig3 ... figS2]   (all figures by default)
+Usage: python scripts/08_figures.py [fig2 fig3 ... figS1]   (all figures by default)
+Fig. 9 needs results/annual_climate.csv from script 07.
 """
 import json
 import sys
@@ -402,34 +403,93 @@ def figS1():
     plt.close(fig)
 
 
-def figS2():
+def nice_limits(values, n=7):
+    """Axis limits on a round step (1, 2, 2.5 or 5 times a power of ten) enclosing the values."""
+    lo, hi = np.min(values), np.max(values)
+    raw = (hi - lo) / n
+    exp = np.floor(np.log10(raw))
+    step = next(f for f in (1, 2, 2.5, 5, 10) if raw / 10 ** exp <= f) * 10 ** exp
+    return np.floor(lo / step) * step, np.ceil(hi / step) * step, step
+
+
+def clear_boxes(ax, x, y, boxes, step, pad=0.02):
+    """Widen the y-axis until no point lies under the given boxes (axes fractions); limits end on major ticks."""
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    xf = (x - x0) / (x1 - x0)
+    for _ in range(30):
+        yf = (y - y0) / (y1 - y0)
+        hit = [b for b in boxes if np.any((xf > b.x0 - pad) & (xf < b.x1 + pad) & (yf > b.y0 - pad) & (yf < b.y1 + pad))]
+        if not hit:
+            ticks = ax.yaxis.get_major_locator().tick_values(y0, y1)
+            tick = ticks[1] - ticks[0]
+            snapped = np.floor(y0 / tick + 1e-9) * tick, np.ceil(y1 / tick - 1e-9) * tick
+            if np.allclose(snapped, (y0, y1)):
+                break
+            y0, y1 = snapped
+            continue
+        for b in hit:
+            if b.y0 > 0.5:
+                y1 += step
+            else:
+                y0 -= step
+    ax.set_ylim(y0, y1)
+
+
+def fig9():
     f = RESULTS / "annual_climate.csv"
     if not f.exists():
-        print("figS2: results/annual_climate.csv not found (run script 07)")
+        print("fig9: results/annual_climate.csv not found (run script 07)")
         return
     a = pd.read_csv(f)
-    fig, axs = plt.subplots(2, 3, figsize=(WIDTH, 4.6), gridspec_kw=dict(hspace=0.4, wspace=0.28))
+    drivers = [("P_mm", "Precipitation", "Precipitation (mm)"), ("T_C", "Temperature", "Temperature (°C)")]
+    fig, axs = plt.subplots(2, 3, figsize=(WIDTH, 5.4), gridspec_kw=dict(hspace=0.45, wspace=0.42))
+    panels = []
     for j, (s, sname) in enumerate(SSPS.items()):
         ens = a[a["run"].isin([f"{g}_{s}" for g in GCMS])].groupby("year")[["ET_mm", "P_mm", "T_C"]].mean()
-        for i, (var, xl) in enumerate([("P_mm", "Annual precipitation (mm yr$^{-1}$)"), ("T_C", "Mean air temperature (°C)")]):
+        for i, (var, name, xlabel) in enumerate(drivers):
             ax = axs[i, j]
-            fit = stats.linregress(ens[var], ens["ET_mm"])
-            ax.scatter(ens[var], ens["ET_mm"], s=10, color="#4c72b0", alpha=0.75, edgecolor="none")
-            xx = np.linspace(ens[var].min(), ens[var].max(), 50)
-            ax.plot(xx, fit.intercept + fit.slope * xx, color="#c44e52", lw=1.2)
-            ax.text(0.03, 0.97, f"r = {fit.rvalue:.3f}\nR² = {fit.rvalue ** 2:.3f}\np = {fit.pvalue:.3g}",
-                    transform=ax.transAxes, va="top", fontsize=6.8)
-            ax.set_xlabel(xl, fontsize=7)
-            if j == 0:
-                ax.set_ylabel("Annual ET (mm yr$^{-1}$)")
-            ax.grid(color=GRID, lw=0.5)
-            ax.set_title(f"({'abcdef'[3 * i + j]}) {sname}", loc="left", fontsize=7.5)
-    fig.savefig(FIGURES / "figS2_et_climate.png")
+            x, y = ens[var].to_numpy(), ens["ET_mm"].to_numpy()
+            fit = stats.linregress(x, y)
+            x0, x1, _ = nice_limits(x)
+            y0, y1, dy = nice_limits(y)
+            ax.scatter(x, y, s=14, color="#1f77b4", alpha=0.85, edgecolor="black", linewidth=0.4,
+                       label="Annual data", zorder=3)
+            xx = np.linspace(x.min(), x.max(), 100)
+            ax.plot(xx, fit.intercept + fit.slope * xx, color="#1f77b4", lw=1.3, label="Linear regression", zorder=4)
+            ax.set_xlim(x0, x1)
+            ax.set_ylim(y0, y1)
+            p = "p < 0.001" if fit.pvalue < 0.001 else f"p = {fit.pvalue:.3f}"
+            sign = "+" if fit.intercept >= 0 else "−"
+            text = (f"Pearson r = {fit.rvalue:.3f}\nR² = {fit.rvalue ** 2:.3f}\n{p}\n"
+                    f"y = {fit.slope:.3f}x {sign} {abs(fit.intercept):.3f}").replace("-", "−")
+            box = ax.text(0.04, 0.96, text, transform=ax.transAxes,
+                          ha="left", va="top", fontsize=5.6, linespacing=1.2, zorder=5,
+                          bbox=dict(boxstyle="round,pad=0.35", fc="white", ec="black", lw=0.5))
+            leg = ax.legend(loc="lower right", fontsize=5.4, frameon=True, framealpha=1, edgecolor="#bdbdbd",
+                            handlelength=1.5, borderpad=0.35, labelspacing=0.3)
+            ax.grid(True, ls="--", color="#d9d9d9", lw=0.5, zorder=0)
+            for sp in ax.spines.values():
+                sp.set_visible(True)
+                sp.set_linewidth(0.6)
+            ax.tick_params(labelsize=6.5)
+            ax.set_title(f"Actual ET vs {name} - {sname}", fontsize=6.8, fontweight="bold", pad=4)
+            ax.set_xlabel(xlabel, fontsize=7)
+            ax.set_ylabel("Actual evapotranspiration (mm)", fontsize=7)
+            ax.text(-0.24, 1.08, f"({'abcdef'[3 * i + j]})", transform=ax.transAxes, fontsize=9,
+                    fontweight="bold", ha="left", va="bottom")
+            panels.append((ax, x, y, box, leg, dy))
+    fig.canvas.draw()
+    for ax, x, y, box, leg, dy in panels:
+        to_axes = ax.transAxes.inverted()
+        extents = [box.get_bbox_patch().get_window_extent(), leg.get_window_extent()]
+        clear_boxes(ax, x, y, [e.transformed(to_axes) for e in extents], dy)
+    fig.savefig(FIGURES / "fig9_et_climate.png")
     plt.close(fig)
 
 
 FIGS = {"fig2": fig2, "fig3": fig3, "fig4": fig4, "fig5": fig5, "fig6": fig6, "fig7": fig7, "fig8": fig8,
-        "figS1": figS1, "figS2": figS2}
+        "fig9": fig9, "figS1": figS1}
 for name in sys.argv[1:] or FIGS:
     FIGS[name]()
     print("done", name)

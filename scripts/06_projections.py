@@ -5,7 +5,9 @@ Outputs (results/):
   changes_by_gcm.csv        % change of Mean/Max/Min/Std for each GCM, SSP, period and time unit
   table2_changes.csv        mean of the five GCM-specific changes with their range (Table 2)
   tableS1_overlap.csv       seasonal-cycle comparison over the 2015-2019 overlap (Table S1)
-  tableS2_statistics.csv    ensemble-mean changes of all statistics (Table S2)
+  tableS2_2025-2049.csv     ensemble-mean changes of Mean/Max/Min/Std, 2025-2049 (Table S2)
+  tableS3_2050-2074.csv     same for 2050-2074 (Table S3)
+  tableS4_2075-2099.csv     same for 2075-2099 (Table S4)
   monthly_signals.csv       absolute changes, sign agreement and seasonal shares (Fig. 8)
   annual_series.csv         annual ET of all runs and the products (Fig. 7)
   baseline_statistics.csv
@@ -17,7 +19,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from etcompare import cwatm, projections  # noqa: E402
-from etcompare.config import GCMS, MONTHS, RESULTS, SEASONS, SSPS  # noqa: E402
+from etcompare.config import GCMS, MONTHS, PERIODS, RESULTS, SEASONS, SSPS  # noqa: E402
 
 runs = cwatm.load_runs()
 changes, base, scale = projections.change_statistics(runs)
@@ -33,11 +35,17 @@ t2["value"] = [f"{m:.1f} [{a:.1f}, {b:.1f}]" for m, a, b in zip(t2["mean"], t2["
 t2.pivot(index=["period", "ssp"], columns="column", values="value")[["Annual", *SEASONS, "Monthly Std"]].to_csv(
     RESULTS / "table2_changes.csv")
 
-# Table S2: ensemble-mean changes of all statistics
-order = ["Monthly", "Seasonal", "Annual", *SEASONS, *MONTHS]
-s2 = summary.pivot_table(index=["period", "unit"], columns=["ssp", "stat"], values="mean")
-s2 = s2.reindex(pd.MultiIndex.from_product([sorted(summary["period"].unique()), order]))
-s2.to_csv(RESULTS / "tableS2_statistics.csv", float_format="%.2f")
+# Tables S2-S4: ensemble-mean changes of all statistics, one table per period
+sections = {"(a) Aggregation": ["Monthly", "Seasonal", "Annual"],
+            "(b) Seasons": list(SEASONS),
+            "(c) Months": MONTHS}
+season_names = {name: f"{name} ({''.join(MONTHS[m - 1][0] for m in months)})" for name, months in SEASONS.items()}
+for number, period in zip((2, 3, 4), PERIODS):
+    t = summary[summary["period"] == period].pivot_table(index="unit", columns=["ssp", "stat"], values="mean")
+    t = t.reindex(columns=pd.MultiIndex.from_product([SSPS.values(), ["Mean", "Max", "Min", "Std"]]))
+    out = pd.concat({name: t.reindex(units).rename(index=season_names) for name, units in sections.items()},
+                    names=["section", "time scale"])
+    out.to_csv(RESULTS / f"tableS{number}_{period}.csv", float_format="%.2f")
 
 projections.overlap_shape(runs).to_csv(RESULTS / "tableS1_overlap.csv", index=False, float_format="%.3f")
 

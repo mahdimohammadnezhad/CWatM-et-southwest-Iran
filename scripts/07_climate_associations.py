@@ -4,8 +4,12 @@ Basin means are taken over all grid cells touching the basin polygon (simple mea
 sums of daily values (mm/yr), T is the annual mean (degC). ET is CWatM land-surface ET (totalET_daily.nc)
 without the level scaling used for the projections.
 Retrospective: GSWP3-W5E5 forcing, 1981-2019. Projections: ISIMIP3b forcing of each GCM and SSP, 2015-2100.
-Needs CWATM_OUTPUT, FORCING_HIST and FORCING_FUTURE.
-Outputs: results/annual_climate.csv, results/tableS3_relationships.csv
+Needs CWATM_OUTPUT, FORCING_HIST and FORCING_FUTURE; with --tables-only, Table S6 is recomputed from
+results/annual_climate.csv and no raw data are read.
+Outputs:
+  data/climate/basin_monthly_climate.csv  monthly ET and P (mm/month) and T (degC) of every run
+  results/annual_climate.csv              annual ET, P and T of every run (Fig. 9 uses the five-GCM mean)
+  results/tableS6_relationships.csv       Pearson, Spearman and linear regression of ET on P and on T (Table S6)
 """
 import re
 import sys
@@ -19,7 +23,7 @@ from rasterio.windows import from_bounds
 from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from etcompare.config import CWATM_OUTPUT, FORCING_FUTURE, FORCING_HIST, GCMS, RESULTS, SSPS  # noqa: E402
+from etcompare.config import CWATM_OUTPUT, DATA, FORCING_FUTURE, FORCING_HIST, GCMS, RESULTS, SSPS  # noqa: E402
 from etcompare.grid import basin_geometry  # noqa: E402
 
 UNIT_SECONDS = {"days": 86400.0, "hours": 3600.0, "minutes": 60.0, "seconds": 1.0}
@@ -70,11 +74,28 @@ def read_files(files, start, end, convert):
     return s[~s.index.duplicated()]
 
 
-def annual_table(et, pr, tas):
+def aggregate(et, pr, tas, freq):
+    """Sums of ET and P and mean of T over complete calendar months ('M') or years ('Y').
+
+    A year needs at least 365 days and February at least 28, so that series without leap days are kept.
+    """
     df = pd.concat({"ET": et, "P": pr, "T": tas}, axis=1, join="inner")
-    g = df.groupby(df.index.year)
+    g = df.groupby(df.index.to_period(freq))
     out = pd.DataFrame({"ET_mm": g["ET"].sum(), "P_mm": g["P"].sum(), "T_C": g["T"].mean()})
-    return out[g.size() >= 365].rename_axis("year")
+    need = [365 if freq == "Y" else min(p.days_in_month, 28 if p.month == 2 else 31) for p in out.index]
+    return out[g.size().to_numpy() >= need]
+
+
+def annual_table(et, pr, tas):
+    out = aggregate(et, pr, tas, "Y")
+    out.index = out.index.year
+    return out.rename_axis("year")
+
+
+def monthly_table(et, pr, tas):
+    out = aggregate(et, pr, tas, "M")
+    out.index = out.index.astype(str)
+    return out.rename_axis("ym")
 
 
 def relationship(x, y):
@@ -90,21 +111,40 @@ def forcing_files(folder, variable, pattern):
     return [f for f in files if f"_{variable}_" in f.name]  # 'pr' must not match 'prsn'
 
 
-annual = []
-et = read_files([CWATM_OUTPUT / "historical" / "totalET_daily.nc"], "1981-01-01", "2019-12-31", to_mm_day)
-pr = read_files(forcing_files(FORCING_HIST, "pr", "gswp3-w5e5_obsclim_{v}_global_daily_*.nc"), "1981-01-01", "2019-12-31", to_mm_day)
-tas = read_files(forcing_files(FORCING_HIST, "tas", "gswp3-w5e5_obsclim_{v}_global_daily_*.nc"), "1981-01-01", "2019-12-31", to_celsius)
-annual.append(annual_table(et, pr, tas).assign(run="historical"))
-for g in GCMS:
-    for s in SSPS:
-        folder = FORCING_FUTURE / g / s
-        et = read_files([CWATM_OUTPUT / g / s / "totalET_daily.nc"], "2015-01-01", "2100-12-31", to_mm_day)
-        pr = read_files(forcing_files(folder, "pr", "*_{v}_lon36.0to53.0lat25.0to41.0_daily_*.nc"), "2015-01-01", "2100-12-31", to_mm_day)
-        tas = read_files(forcing_files(folder, "tas", "*_{v}_lon36.0to53.0lat25.0to41.0_daily_*.nc"), "2015-01-01", "2100-12-31", to_celsius)
-        annual.append(annual_table(et, pr, tas).assign(run=f"{g}_{s}"))
-        print(g, s, "years", len(annual[-1]))
-annual = pd.concat(annual).reset_index()
-annual.to_csv(RESULTS / "annual_climate.csv", index=False, float_format="%.4f")
+def extract():
+    """Read the raw data; write the monthly and annual tables and return the annual one."""
+    annual, monthly = [], []
+
+    def add_run(name, et, pr, tas):
+        annual.append(annual_table(et, pr, tas).assign(run=name))
+        monthly.append(monthly_table(et, pr, tas).assign(run=name))
+        print(name, "years", len(annual[-1]), "months", len(monthly[-1]), flush=True)
+
+    hist = ("1981-01-01", "2019-12-31")
+    et = read_files([CWATM_OUTPUT / "historical" / "totalET_daily.nc"], *hist, to_mm_day)
+    pr = read_files(forcing_files(FORCING_HIST, "pr", "gswp3-w5e5_obsclim_{v}_global_daily_*.nc"), *hist, to_mm_day)
+    tas = read_files(forcing_files(FORCING_HIST, "tas", "gswp3-w5e5_obsclim_{v}_global_daily_*.nc"), *hist, to_celsius)
+    add_run("historical", et, pr, tas)
+    future = ("2015-01-01", "2100-12-31")
+    pattern = "*_{v}_lon36.0to53.0lat25.0to41.0_daily_*.nc"
+    for g in GCMS:
+        for s in SSPS:
+            folder = FORCING_FUTURE / g / s
+            et = read_files([CWATM_OUTPUT / g / s / "totalET_daily.nc"], *future, to_mm_day)
+            pr = read_files(forcing_files(folder, "pr", pattern), *future, to_mm_day)
+            tas = read_files(forcing_files(folder, "tas", pattern), *future, to_celsius)
+            add_run(f"{g}_{s}", et, pr, tas)
+
+    (DATA / "climate").mkdir(exist_ok=True)
+    monthly = pd.concat(monthly).reset_index()[["run", "ym", "ET_mm", "P_mm", "T_C"]]
+    monthly.to_csv(DATA / "climate" / "basin_monthly_climate.csv", index=False, float_format="%.6f")
+    annual = pd.concat(annual).reset_index()
+    annual.to_csv(RESULTS / "annual_climate.csv", index=False, float_format="%.6f")
+    return annual
+
+
+# --tables-only: recompute Table S6 from results/annual_climate.csv (no raw data needed)
+annual = pd.read_csv(RESULTS / "annual_climate.csv") if "--tables-only" in sys.argv else extract()
 
 rows = []
 groups = [("historical", annual[annual["run"] == "historical"])]
@@ -116,5 +156,5 @@ for name, d in groups:
     for var in ["P_mm", "T_C"]:
         rows.append({"run": name, "driver": var, **relationship(d[var], d["ET_mm"])})
 table = pd.DataFrame(rows)
-table.to_csv(RESULTS / "tableS3_relationships.csv", index=False, float_format="%.4g")
+table.to_csv(RESULTS / "tableS6_relationships.csv", index=False, float_format="%.8g")
 print(table[table["run"].str.startswith(("historical", "ensemble"))].round(3).to_string(index=False))

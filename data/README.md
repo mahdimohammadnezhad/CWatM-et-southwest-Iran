@@ -9,6 +9,7 @@
 | `cwatm/basin_cells.csv` | cell area (`cell_km2`), share inside the polygon (`frac`), mask weights `w`, polygon weights `w_poly` |
 | `cwatm/cells_historical_monthly.csv` | retrospective run, monthly mean ET components per cell (mm/d): `totalET`, `waterbody` (EvapWaterBodyM), `channel` (EvapoChannel) |
 | `cwatm/basin_monthly_et.csv` | basin-mean monthly ET (mm/d) of the retrospective run and the 15 GCM-driven runs (`run` = `historical` or `<GCM>_<SSP>`) |
+| `climate/basin_monthly_climate.csv` | monthly CWatM land-surface ET (`totalET`) and precipitation (mm/month) and mean air temperature (°C) of the 16 runs, simple mean over the cells touching the basin polygon (script 07) |
 | `products/et_products_basin_monthly.csv` | basin-mean ET (mm/d) of the six reference datasets per monthly window (GEE export; `date` = window start); TerraClimate values are monthly totals / 30 |
 | `products/maps/ET_mean_<dataset>.tif` | mean ET (mm/d) of each dataset on the 0.01° grid, over the periods of Table 1 |
 | `grid/env_grid_001.npz` | 0.01° grid: `basin`, `koppen`, `elevation` (m), `lulc_<class>` fractions, `transform` |

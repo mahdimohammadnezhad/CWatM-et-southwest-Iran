@@ -2,6 +2,7 @@
 
 w      : area of the 61 cells of the study-basin mask (data/cwatm/basin_mask_cells.csv); used throughout
 w_poly : area of each cell inside the basin polygon (sensitivity test)
+Cell areas and the share of each cell inside the basin polygon are computed in an equal-area projection.
 Output : data/cwatm/basin_cells.csv
 """
 import sys

@@ -2,7 +2,8 @@
 
 Outputs (results/):
   table1_agreement.csv        N, r, RMSE, PBIAS, NSE, KGE and upper-decile PBIAS (Table 1)
-  pbias_by_class.csv          PBIAS and mean difference by reference quartile and calendar quarter
+  pbias_by_class.csv          PBIAS and mean difference by reference quartile and calendar quarter (Fig. 4)
+  tableS5_pbias.csv           the same PBIAS with the number of paired months, as in Table S5
   monthly_climatology.csv     mean and standard deviation of each calendar month over the paired months
   mean_adjustment.csv         additive offsets of GLDAS-Noah and SMAP L4 (inter-annual comparison only)
   weighting_sensitivity.csv   Table 1 statistics with polygon-fraction weights
@@ -52,7 +53,13 @@ for name in products.PRODUCTS:
 
 t1 = pd.DataFrame(table).set_index("dataset")
 t1.to_csv(RESULTS / "table1_agreement.csv", float_format="%.4f")
-pd.concat(classes).to_csv(RESULTS / "pbias_by_class.csv", index=False, float_format="%.4f")
+classes = pd.concat(classes)
+classes.to_csv(RESULTS / "pbias_by_class.csv", index=False, float_format="%.4f")
+s5 = classes.assign(dataset=classes["dataset"].map(products.label),
+                    value=[f"{p:+.1f} ({n})" for p, n in zip(classes["PBIAS"], classes["N"])])
+s5 = s5.pivot(index="dataset", columns="group", values="value")
+s5.reindex(index=[products.label(n) for n in products.PRODUCTS],
+           columns=["Q1", "Q2", "Q3", "Q4", "JFM", "AMJ", "JAS", "OND"]).to_csv(RESULTS / "tableS5_pbias.csv")
 pd.concat(clim).to_csv(RESULTS / "monthly_climatology.csv", index=False, float_format="%.4f")
 pd.DataFrame(adjust).to_csv(RESULTS / "mean_adjustment.csv", index=False, float_format="%.5f")
 pd.DataFrame(sens).to_csv(RESULTS / "weighting_sensitivity.csv", index=False, float_format="%.4f")
